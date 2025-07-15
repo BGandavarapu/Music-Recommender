@@ -31,7 +31,7 @@ This is a fun, interactive web app that helps you discover new songs based on yo
 - **Local JSON database** (no backend required)
 
 ## Why I Built This
-I wanted a simple, privacy-friendly way to get music recommendations that actually fit my mood and the weather—without needing a Spotify account or giving up my data. This project is all about making music discovery easy, fun, and personal.
+I wanted a simple, privacy-friendly way to get music recommendations that actually fit my mood and the weather. This project is all about making music discovery easy, fun, and personal.
 
 ## Contributing
 Feel free to fork, star, or open issues! If you have song suggestions or want to help improve the recommendation logic, PRs are welcome.
