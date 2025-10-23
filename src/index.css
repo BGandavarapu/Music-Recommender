@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.font-poppins {
+  font-family: 'Poppins', sans-serif;
+}
+
+.bg-cream {
+  background-color: #fef7ed;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-16px); }
+}
+.animate-float-slow {
+  animation: float 4s ease-in-out infinite;
+}
+.animate-float-medium {
+  animation: float 3s ease-in-out infinite;
+}
+.animate-float-fast {
+  animation: float 2s ease-in-out infinite;
+} 
