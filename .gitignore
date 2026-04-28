@@ -1,23 +1,32 @@
 # Dependencies
 node_modules/
 
-# Dataset files
-src/data/songs.db
-src/data/songs.json
-
-# Build files
+# Build output
 dist/
 build/
 
-# Environment files
+# Python
+agent/__pycache__/
+agent/**/__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+agent/.env
+
+# SQLite databases
+*.sqlite
+*.sqlite-journal
+server/
+
+# Environment
 .env
 .env.local
 
-# OS files
+# OS
 .DS_Store
 Thumbs.db
 
-# IDE files
+# IDE
 .vscode/
 .idea/
 *.swp
@@ -27,6 +36,3 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-

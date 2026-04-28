@@ -1,40 +1,81 @@
-# Music Recommender
+# Music Recommender 🎵
 
-Welcome to **Music Recommender**! 🎶
+An AI-powered music assistant. Chat with it to create Spotify playlists, discover songs by mood or weather, analyze your taste, and queue music — all in natural language.
 
-This is a fun, interactive web app that helps you discover new songs based on your current playlist and the weather outside. Whether you're feeling sunny, rainy, cold, or anywhere in between, just paste your favorite tracks, set the mood with the weather, and get personalized music recommendations in seconds.
+> "Create a rainy day indie playlist"  
+> "Analyze my Chill Vibes playlist and make something similar"  
+> "Queue 5 upbeat tracks to get me going"
 
-## Features
-- **Paste your playlist:** Just copy and paste your favorite songs (one per line, like `Song Name, Artist`).
-- **Set the weather:** Tell us if it's sunny, rainy, cold, or anything else—your recommendations will match the vibe!
-- **Smart recommendations:** Get a curated list of songs that fit your mood and the weather, powered by a growing music database.
-- **No accounts, no hassle:** Everything runs right in your browser. No signups, no Spotify login, no API keys needed.
+## Stack
 
-## How to Use
-1. **Start the app:**
-   - Run `npm install` to install dependencies.
-   - Run `npm start` to launch the app (it will open in your browser).
-2. **Paste your playlist:**
-   - Enter each song on a new line, like:
-     ```
-     Blinding Lights, The Weeknd
-     Sunflower, Post Malone
-     ```
-3. **Describe the weather:**
-   - Type something like `sunny`, `rainy`, `cloudy`, or even `cold and windy`.
-4. **Get recommendations:**
-   - Click "Analyze Playlist" and see your personalized song list!
+- **Frontend:** React 18 + TypeScript + Vite + Tailwind + Framer Motion
+- **Backend:** Python + FastAPI + SQLAlchemy + SQLite
+- **AI:** Claude (Anthropic) with tool_use — agentic loop
+- **Music:** Spotify Web API (search, playlists, queue, audio analysis)
+- **Weather:** Open-Meteo (keyless)
 
-## Tech Stack
-- **React** (frontend)
-- **Tailwind CSS** (styling)
-- **Local JSON database** (no backend required)
+## Setup
 
-## Why I Built This
-I wanted a simple, privacy-friendly way to get music recommendations that actually fit my mood and the weather. This project is all about making music discovery easy, fun, and personal.
+### 1. Spotify Developer App
 
-## Contributing
-Feel free to fork, star, or open issues! If you have song suggestions or want to help improve the recommendation logic, PRs are welcome.
+1. Go to [developer.spotify.com](https://developer.spotify.com) → Create an app
+2. Add `http://localhost:5173/callback` as a Redirect URI
+3. Copy your **Client ID** and **Client Secret**
+
+### 2. Backend
+
+```bash
+cd agent
+cp .env.example .env
+# Fill in ANTHROPIC_API_KEY, SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET
+# Generate SECRET_KEY: python -c "import secrets; print(secrets.token_hex(32))"
+
+pip install -r requirements.txt
+```
+
+### 3. Frontend
+
+```bash
+npm install
+```
+
+### 4. Run
+
+```bash
+npm run dev
+```
+
+Opens Vite at `http://localhost:5173`. The FastAPI backend runs on `:8000`. Vite proxies `/api/*` to it automatically.
+
+## How it works
+
+1. User connects their Spotify account via OAuth
+2. The chat window opens — type anything
+3. Claude receives the message + tool registry
+4. Claude calls tools (search Spotify, check weather, create playlist…) until it has a full answer
+5. Results stream back in real time via SSE
+6. Playlists appear as clickable cards that open directly in Spotify
+
+## Agent tools
+
+| Tool | What it does |
+|---|---|
+| `search_catalog` | Search Spotify's 100M+ track catalog |
+| `get_recommendations` | Spotify recommendations seeded from tracks/artists |
+| `create_playlist` | Create a playlist in the user's library |
+| `add_to_playlist` | Append tracks to an existing playlist |
+| `add_to_queue` | Queue songs to the active Spotify device |
+| `get_user_playlists` | List user's playlists |
+| `analyze_playlist` | Extract taste profile (tempo, energy, mood, top artists) |
+| `get_current_playback` | See what's currently playing |
+| `get_weather` | Real weather → music mood via Open-Meteo |
+
+## Adding more tools
+
+1. Add the implementation in `agent/agent/tools/spotify_tools.py` (or a new file)
+2. Add the JSON schema to `agent/agent/tools/definitions.py`
+3. Add the dispatch case in `agent/agent/brain.py::dispatch_tool()`
 
 ## License
-MIT 
+
+MIT

@@ -1,0 +1,25 @@
+export const COPY = {
+  title: "Find Your Soundtrack",
+  subtitle: "Share your playlist and today's vibe — we'll match the mood.",
+  playlistLabel: "Your Playlist",
+  playlistPlaceholder: "Blinding Lights - The Weeknd\nSunflower, Post Malone",
+  weatherLabel: "What's the weather like?",
+  weatherPlaceholder: "e.g. sunny and warm",
+  weatherDetect: "Use my location",
+  weatherDetecting: "Detecting…",
+  findButton: "Find My Songs",
+  surpriseLabel: "Surprise me — skip the playlist",
+  tempoLabel: "Tempo",
+  tempoAll: "Any",
+  emptyResults: "No recommendations yet. Paste your playlist and set the weather!",
+  loading: "Finding songs…",
+  errors: {
+    emptyPlaylist: "Please enter your playlist songs.",
+    badSeparator:
+      "Each line must include a song name and artist separated by a comma or dash (e.g. 'Sunflower, Post Malone').",
+    emptyWeather: "Please describe the weather.",
+    geolocationDenied: "Location access was denied. Type the weather manually.",
+    geolocationUnsupported: "Your browser doesn't support location detection.",
+    backendDown: "Recommender is offline. Try again in a moment.",
+  },
+} as const;

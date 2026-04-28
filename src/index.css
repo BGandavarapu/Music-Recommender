@@ -2,24 +2,50 @@
 @tailwind components;
 @tailwind utilities;
 
-.font-poppins {
-  font-family: 'Poppins', sans-serif;
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-sp-bg text-sp-text font-sans antialiased;
+    font-feature-settings: "ss01", "cv11";
+  }
+  ::selection {
+    background-color: #1db95455;
+    color: #ffffff;
+  }
+  /* Subtle scrollbar to match dark theme */
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: #2a2a2a;
+    border-radius: 9999px;
+    border: 2px solid #121212;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: #3a3a3a;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
 }
 
-.bg-cream {
-  background-color: #fef7ed;
-}
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
 
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-16px); }
+  /* Soft radial green glow used behind the hero */
+  .bg-radial-glow {
+    background: radial-gradient(
+      ellipse at center,
+      rgba(29, 185, 84, 0.18) 0%,
+      rgba(29, 185, 84, 0.06) 35%,
+      rgba(0, 0, 0, 0) 70%
+    );
+  }
 }
-.animate-float-slow {
-  animation: float 4s ease-in-out infinite;
-}
-.animate-float-medium {
-  animation: float 3s ease-in-out infinite;
-}
-.animate-float-fast {
-  animation: float 2s ease-in-out infinite;
-} 
