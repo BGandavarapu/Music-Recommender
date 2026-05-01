@@ -160,15 +160,22 @@ TOOL_DEFINITIONS = [
         "function": {
             "name": "analyze_playlist",
             "description": (
-                "Compute the audio PROFILE (tempo, energy, valence) and top artists of a playlist for "
-                "'make me something like my [name] playlist' requests. Returns aggregate stats and seed IDs — NOT the song list. "
-                "If the user wants to see the songs in a playlist, use get_playlist_tracks instead. "
+                "Profile a playlist's CHARACTER for 'analyze my [name] playlist', 'make me something like my [name]', "
+                "'based on my [name] playlist', or 'vibe of my [name]' requests. Returns: "
+                "top_artists, top_genres, top_genre_families (rap/pop/indie/lo-fi/...), "
+                "top_languages (hindi/k-pop/english/spanish/...), character_summary "
+                "(short string like 'rap-leaning, mostly hindi-language'), and seed IDs ready for get_recommendations. "
+                "Does NOT return the song list — for that, use get_playlist_tracks. "
+                "REQUIRES a real playlist_id from get_user_playlists; do NOT pass a playlist name. "
                 "DO NOT use for liked songs or general taste analysis — those use get_liked_songs or get_top_items."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "playlist_id": {"type": "string", "description": "Spotify playlist ID"},
+                    "playlist_id": {
+                        "type": "string",
+                        "description": "Spotify playlist ID (must come from get_user_playlists, not the user's text)",
+                    },
                 },
                 "required": ["playlist_id"],
             },

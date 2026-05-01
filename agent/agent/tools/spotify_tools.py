@@ -1,4 +1,5 @@
 import asyncio
+import json
 import httpx
 from collections import Counter
 
@@ -18,6 +19,30 @@ def _int(v, default: int) -> int:
         return default
 
 
+def _ensure_str_list(v) -> list[str]:
+    """
+    Llama models often double-encode list parameters as JSON strings:
+      seed_track_ids = '["id1", "id2"]'  instead of  ["id1", "id2"]
+    Recover the list. Return [] for anything that can't be coerced.
+    """
+    if v is None:
+        return []
+    if isinstance(v, list):
+        return [str(x) for x in v if x]
+    if isinstance(v, str):
+        s = v.strip()
+        if s.startswith("[") and s.endswith("]"):
+            try:
+                parsed = json.loads(s)
+                if isinstance(parsed, list):
+                    return [str(x) for x in parsed if x]
+            except (json.JSONDecodeError, TypeError):
+                pass
+        # Fallback: treat as a single value
+        return [v] if v else []
+    return []
+
+
 def _headers(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
@@ -25,6 +50,16 @@ def _headers(token: str) -> dict:
 def _http_error_to_result(e: httpx.HTTPStatusError, operation: str) -> dict:
     """Convert an HTTPStatusError into a structured result dict with an agent-actionable hint."""
     code = e.response.status_code
+    if code == 400 and operation in ("analyze_playlist", "get_playlist_tracks"):
+        return {
+            "error": "BAD_PLAYLIST_ID",
+            "hint": (
+                f"Spotify rejected the playlist_id passed to {operation} (400). "
+                "Call get_user_playlists FIRST and match the playlist by name "
+                "(case-insensitive, ignore trailing spaces and punctuation like ':(' or emojis) "
+                "to get the real ID, then retry."
+            ),
+        }
     if code == 401:
         return {
             "error": "AUTH_EXPIRED",
@@ -53,6 +88,79 @@ def _http_error_to_result(e: httpx.HTTPStatusError, operation: str) -> dict:
         "error": f"HTTP_{code}",
         "hint": f"Spotify returned HTTP {code} on {operation}. Try a different approach or tell the user what failed.",
     }
+
+
+# Genre-keyword tables for inferring playlist character. Substring match against
+# Spotify's artist.genres strings (e.g. "filmi", "punjabi pop", "k-pop boy group").
+LANGUAGE_KEYWORDS: dict[str, list[str]] = {
+    "hindi": ["hindi", "bollywood", "filmi", "desi"],
+    "punjabi": ["punjabi", "bhangra"],
+    "tamil": ["tamil", "kollywood"],
+    "telugu": ["telugu", "tollywood"],
+    "korean": ["k-pop", "korean", "k-rap", "k-rock", "k-indie", "k-hip"],
+    "japanese": ["j-pop", "japanese", "j-rock", "anime", "city pop"],
+    "spanish": ["latin", "reggaeton", "spanish", "bachata", "merengue", "salsa", "regional mexican", "ranchera"],
+    "portuguese": ["brazilian", "bossa nova", "samba", "mpb", "funk carioca"],
+    "mandarin": ["mandopop", "c-pop", "chinese"],
+    "cantonese": ["cantopop", "hk-pop"],
+    "french": ["french pop", "chanson", "variété française"],
+    "arabic": ["arabic", "khaleeji"],
+}
+
+GENRE_FAMILIES: dict[str, list[str]] = {
+    "rap": ["rap", "hip hop", "hip-hop", "trap", "drill"],
+    "lo-fi": ["lo-fi", "lofi"],
+    "r&b": ["r&b", "rnb", "neo soul", "soul"],
+    "electronic": ["edm", "electronic", "house", "techno", "dance", "electronica", "trance"],
+    "rock": ["rock", "alt-rock", "alternative"],
+    "indie": ["indie"],
+    "pop": ["pop"],
+    "country": ["country"],
+    "jazz": ["jazz"],
+    "classical": ["classical", "orchestral", "neoclassical"],
+    "folk": ["folk", "acoustic", "singer-songwriter"],
+    "metal": ["metal", "heavy metal"],
+    "punk": ["punk"],
+}
+
+
+def _infer_languages(genres: list[str]) -> list[str]:
+    """Return language tags found in the genre strings, ordered by likelihood. Falls back to ['english']."""
+    genres_lower = [g.lower() for g in genres if g]
+    found: list[str] = []
+    for lang, keywords in LANGUAGE_KEYWORDS.items():
+        if any(kw in g for kw in keywords for g in genres_lower):
+            found.append(lang)
+    if not found and genres_lower:
+        found.append("english")
+    return found
+
+
+def _infer_genre_families(genres: list[str]) -> list[str]:
+    """Group raw Spotify genres into broad families (rap, pop, indie, …) ordered by frequency."""
+    counts: Counter = Counter()
+    genres_lower = [g.lower() for g in genres if g]
+    for g in genres_lower:
+        for family, keywords in GENRE_FAMILIES.items():
+            if any(kw in g for kw in keywords):
+                counts[family] += 1
+                break  # only count one family per raw genre
+    return [f for f, _ in counts.most_common(5)]
+
+
+def _build_character_summary(top_families: list[str], top_languages: list[str]) -> str:
+    """Short human-readable string the model can quote in its reply."""
+    parts: list[str] = []
+    if top_families:
+        if len(top_families) >= 2:
+            parts.append(f"{top_families[0]}-leaning with {top_families[1]} elements")
+        else:
+            parts.append(f"{top_families[0]}-leaning")
+    if top_languages and top_languages != ["english"]:
+        parts.append(f"mostly {top_languages[0]}-language")
+    elif top_languages == ["english"]:
+        parts.append("English-language")
+    return ", ".join(parts) if parts else "mixed"
 
 
 def _network_error(e: Exception, operation: str) -> dict:
@@ -102,6 +210,9 @@ async def get_recommendations(
     4. /search with query_hint (e.g. mood keywords)
     """
     limit = _int(limit, 20)
+    seed_track_ids = _ensure_str_list(seed_track_ids)
+    seed_artist_ids = _ensure_str_list(seed_artist_ids)
+    seed_artist_names = _ensure_str_list(seed_artist_names)
     tracks: list[dict] = []
     seen: set[str] = set()
 
@@ -355,17 +466,25 @@ async def get_playlist_tracks(token: str, playlist_id: str, limit: int = 30) -> 
 
 
 async def analyze_playlist(token: str, playlist_id: str) -> dict:
+    """
+    Profile a playlist's character: top artists, genre families (rap / pop / indie / …),
+    inferred languages (Hindi / K-pop / English / …), and a short character_summary string
+    the agent can quote back to the user.
+
+    Genres come from Spotify's artist objects (the deprecated /audio-features endpoint is
+    no longer used). The endpoint serves up to 50 artist IDs per batch.
+    """
     try:
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-            # Use the whole-playlist endpoint (working) rather than /playlists/{id}/tracks
-            # which is blocked by Spotify's Development Mode quota.
             r = await client.get(
                 f"{BASE}/playlists/{playlist_id}",
                 headers=_headers(token),
                 params={"market": "US"},
             )
             r.raise_for_status()
-            tracks, _total = _extract_playlist_items(r.json())
+            playlist_data = r.json()
+            playlist_name = playlist_data.get("name", "")
+            tracks, _total = _extract_playlist_items(playlist_data)
             track_ids = [t["id"] for t in tracks if t.get("id")]
 
             artist_counts: Counter = Counter()
@@ -379,34 +498,48 @@ async def analyze_playlist(token: str, playlist_id: str) -> dict:
                         if aid:
                             artist_id_map.setdefault(name, aid)
 
-            features_list: list[dict] = []
-            for chunk_start in range(0, len(track_ids), 100):
-                chunk = track_ids[chunk_start : chunk_start + 100]
+            top_artist_names = [a for a, _ in artist_counts.most_common(25)]
+            top_artist_ids = [artist_id_map[n] for n in top_artist_names if n in artist_id_map]
+
+            # Batch-fetch artist metadata (genres). /v1/artists accepts up to 50 IDs per call.
+            all_genres: list[str] = []
+            genres_by_artist: dict[str, list[str]] = {}
+            if top_artist_ids:
                 try:
-                    fr = await client.get(
-                        f"{BASE}/audio-features",
+                    ar = await client.get(
+                        f"{BASE}/artists",
                         headers=_headers(token),
-                        params={"ids": ",".join(chunk)},
+                        params={"ids": ",".join(top_artist_ids[:50])},
                     )
-                    if fr.status_code == 200:
-                        features_list.extend([f for f in fr.json().get("audio_features", []) if f])
+                    if ar.status_code == 200:
+                        for artist in ar.json().get("artists", []) or []:
+                            if not artist:
+                                continue
+                            aid = artist.get("id")
+                            ag = artist.get("genres") or []
+                            if aid:
+                                genres_by_artist[aid] = ag
+                            all_genres.extend(ag)
                 except httpx.HTTPError:
-                    pass  # audio-features deprecated for new apps; keep analysis without it
+                    pass  # genres are best-effort; we still return artists/seeds
 
-        def avg(key: str) -> float | None:
-            vals = [f[key] for f in features_list if f.get(key) is not None]
-            return round(sum(vals) / len(vals), 3) if vals else None
+        top_families = _infer_genre_families(all_genres)
+        top_languages = _infer_languages(all_genres)
+        # Top raw genres for the model to quote literally if useful
+        top_raw_genres = [g for g, _ in Counter(all_genres).most_common(5)]
+        character_summary = _build_character_summary(top_families, top_languages)
 
-        top_artist_names = [a for a, _ in artist_counts.most_common(5)]
         return {
+            "playlist_name": playlist_name,
             "track_count": len(track_ids),
-            "top_artists": top_artist_names,
-            "avg_tempo": avg("tempo"),
-            "avg_energy": avg("energy"),
-            "avg_valence": avg("valence"),
-            "avg_danceability": avg("danceability"),
+            "top_artists": top_artist_names[:5],
+            "top_genre_families": top_families,
+            "top_genres": top_raw_genres,
+            "top_languages": top_languages,
+            "character_summary": character_summary,
             "seed_track_ids": track_ids[:5],
-            "seed_artist_ids": [artist_id_map[n] for n in top_artist_names if n in artist_id_map][:5],
+            "seed_artist_ids": top_artist_ids[:5],
+            "seed_artist_names": top_artist_names[:5],
         }
     except httpx.HTTPStatusError as e:
         return _http_error_to_result(e, "analyze_playlist")

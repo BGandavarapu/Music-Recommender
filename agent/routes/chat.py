@@ -32,6 +32,9 @@ async def chat(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    if not req.message or not req.message.strip():
+        raise HTTPException(status_code=400, detail="Message cannot be empty")
+
     try:
         token = await ensure_fresh_token(user, db)
     except Exception as e:

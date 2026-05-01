@@ -16,12 +16,19 @@ MAX_ITERATIONS = 20
 # Intent-based routing: force the first tool call when the user's message clearly
 # matches a known pattern. This bypasses the model's tool-selection when it's predictable.
 INTENT_PATTERNS: list[tuple[re.Pattern[str], str]] = [
+    # Playlist intents come FIRST: any phrase containing "playlist" is a playlist
+    # request, even if it also mentions "music taste" or "top artists" (those words
+    # would otherwise route to get_top_items and never visit the playlist).
+    (re.compile(r"\b(my\s+playlists?|show\s+(me\s+)?my\s+playlists?|list\s+my\s+playlists?)\b", re.I), "get_user_playlists"),
+    (re.compile(r"\b(list|show|see|what'?s\s+in|what\s+is\s+in|songs?\s+(in|from)|tracks?\s+(in|from))\b.*\bplaylist\b", re.I), "get_user_playlists"),
+    # analyze / vibe-match a playlist → forced get_user_playlists so the model never
+    # hallucinates a playlist_id (which caused the analyze_playlist 400s).
+    (re.compile(r"\b(analyz[se]|look\s+at|based\s+on|something\s+like|like\s+my|vibe\s+of|profile\s+of)\b.*\bplaylist\b", re.I), "get_user_playlists"),
     (re.compile(r"\b(liked|saved)\s+songs?\b|\bmy\s+library\b", re.I), "get_liked_songs"),
     (re.compile(r"\b(top|favorite)\s+(songs?|tracks?|artists?)\b|\bmy\s+music\s+taste\b|\banalyze\s+my\s+taste\b|\bbased\s+on\s+(my\s+taste|what\s+i\s+listen)", re.I), "get_top_items"),
     (re.compile(r"\brecently\s+played\b|\bjust\s+listened\b|\b(what|songs?)\s+i('?ve)?\s+been\s+(listening|playing)\b|\bbeen\s+listening\s+to\s+lately\b", re.I), "get_recently_played"),
-    # User wants to list / show / see songs in a NAMED playlist. Force
-    # get_user_playlists first so the model has the IDs to call get_playlist_tracks.
-    (re.compile(r"\b(list|show|see|what'?s\s+in|what\s+is\s+in|songs?\s+(in|from)|tracks?\s+(in|from))\b.*\bplaylist\b", re.I), "get_user_playlists"),
+    # User asks what's currently playing
+    (re.compile(r"\b(what'?s|what\s+is)\s+(currently|now|playing|on)\b|\bcurrently\s+playing\b|\bnow\s+playing\b|\bwhat('?s)?\s+playing\b", re.I), "get_current_playback"),
 ]
 
 # Recognize tiny casual messages that should NOT trigger any tool. The model
@@ -49,7 +56,64 @@ def forced_first_tool(user_message: str) -> str | None:
     return None
 
 
-async def dispatch_tool(name: str, inputs: dict, token: str, spotify_user_id: str, location=None) -> dict:
+def _normalize_show_tracks_input(inputs: dict) -> dict:
+    """
+    Llama and other open-weight models pass `tracks` in surprising shapes:
+      1. JSON-encoded string of an array — `"tracks": "[{...}, ...]"`
+      2. Upstream result dict — `"tracks": {"track_count": N, "tracks": [...]}`
+      3. List wrapping the upstream result — `"tracks": [{"tracks": [...], ...}]`
+      4. Each entry encoded as a JSON string — `"tracks": ["{...}", "{...}"]`
+    Normalize to a flat list[dict] so show_tracks can validate by name.
+    """
+    tracks = inputs.get("tracks")
+    if tracks is None:
+        return inputs
+
+    if isinstance(tracks, str):
+        try:
+            tracks = json.loads(tracks)
+        except (json.JSONDecodeError, TypeError):
+            return inputs
+
+    if isinstance(tracks, dict):
+        for key in ("tracks", "top_tracks", "items"):
+            inner = tracks.get(key)
+            if isinstance(inner, list):
+                tracks = inner
+                break
+
+    if isinstance(tracks, list):
+        normalized: list = []
+        for t in tracks:
+            if isinstance(t, str):
+                try:
+                    parsed = json.loads(t)
+                    if isinstance(parsed, dict):
+                        normalized.append(parsed)
+                except (json.JSONDecodeError, TypeError):
+                    continue
+            elif isinstance(t, dict):
+                # Wrapper detection: an upstream-result dict with no track name
+                # but a nested tracks list — flatten it.
+                if "name" not in t and isinstance(t.get("tracks"), list):
+                    for inner_t in t["tracks"]:
+                        if isinstance(inner_t, dict):
+                            normalized.append(inner_t)
+                else:
+                    normalized.append(t)
+        tracks = normalized
+
+    return {**inputs, "tracks": tracks}
+
+
+async def dispatch_tool(
+    name: str,
+    inputs: dict,
+    token: str,
+    spotify_user_id: str,
+    location=None,
+    last_fetched_tracks: list[dict] | None = None,
+) -> dict:
     log.info("tool_call name=%s inputs=%s", name, inputs)
     try:
         match name:
@@ -58,6 +122,14 @@ async def dispatch_tool(name: str, inputs: dict, token: str, spotify_user_id: st
             case "get_recommendations":
                 return {"tracks": await spotify_tools.get_recommendations(token, **inputs)}
             case "show_tracks":
+                inputs = _normalize_show_tracks_input(inputs)
+                # Llama frequently passes "[]" or other garbage as tracks even when
+                # the previous tool call returned a perfectly good track list. Fall
+                # back to the cached tracks from the last data-fetch tool.
+                tracks = inputs.get("tracks")
+                if (not isinstance(tracks, list) or not tracks) and last_fetched_tracks:
+                    log.info("show_tracks fallback to last_fetched_tracks count=%d", len(last_fetched_tracks))
+                    inputs = {**inputs, "tracks": last_fetched_tracks}
                 return await spotify_tools.show_tracks(token, **inputs)
             case "get_user_playlists":
                 return {"playlists": await spotify_tools.get_user_playlists(token)}
@@ -79,9 +151,12 @@ async def dispatch_tool(name: str, inputs: dict, token: str, spotify_user_id: st
                 return await spotify_tools.get_recently_played(token, **inputs)
             case _:
                 return {"error": "UNKNOWN_TOOL", "hint": f"Tool {name} does not exist. Use one of the registered tools."}
-    except TypeError as e:
-        # Bad arguments from the model — tell it clearly
-        return {"error": "BAD_ARGUMENTS", "hint": f"Tool {name} rejected the arguments: {e}. Check the tool's parameter schema and try again."}
+    except (TypeError, KeyError, ValueError, AttributeError) as e:
+        # Bad / missing / wrong-shape arguments from the model — tell it clearly
+        return {
+            "error": "BAD_ARGUMENTS",
+            "hint": f"Tool {name} rejected the arguments: {type(e).__name__}: {e}. Check the tool's parameter schema and try again.",
+        }
 
 
 def _tool_result_has_error(result) -> tuple[bool, str | None]:
@@ -121,9 +196,32 @@ async def run_agent(
         log.info("intent_routing forced_tool=%s", forced)
 
     last_tool_name: str | None = None
+    last_fetched_tracks: list[dict] | None = None
     show_tracks_succeeded = False
+    show_tracks_failures = 0
+    MAX_SHOW_TRACKS_FAILURES = 2
+
+    def _extract_tracks_for_cache(tool: str, result: object) -> list[dict] | None:
+        """Pull the tracks array out of a data-fetch tool result, regardless of which key it lives under."""
+        if not isinstance(result, dict):
+            return None
+        for key in ("tracks", "top_tracks"):
+            val = result.get(key)
+            if isinstance(val, list) and val and isinstance(val[0], dict) and val[0].get("name"):
+                return val
+        return None
 
     for iteration in range(MAX_ITERATIONS):
+        # If show_tracks has failed repeatedly, the model is stuck in a loop —
+        # bail out with a clear error rather than letting it lie about success.
+        if show_tracks_failures >= MAX_SHOW_TRACKS_FAILURES:
+            log.warning("show_tracks_terminal_failure attempts=%d", show_tracks_failures)
+            yield _sse("error", {
+                "text": "I gathered the tracks but couldn't display them. Try rephrasing your request — sometimes a slightly different phrasing helps.",
+            })
+            yield _sse("done", {})
+            return
+
         tool_choice: str | dict = "auto"
         if iteration == 0 and casual:
             # Casual greeting/thanks — block tools so the model just replies briefly
@@ -166,6 +264,20 @@ async def run_agent(
                 # replace with a sane default so the user doesn't see JSON.
                 if TOOL_CALL_AS_TEXT_RE.match(content):
                     log.warning("model_emitted_tool_call_as_text len=%d", len(content))
+                    # Best case: we have tracks cached from a prior data-fetch
+                    # tool. The model probably tried to call show_tracks but
+                    # serialized the args wrong. Render the cached tracks
+                    # ourselves instead of dropping the whole response.
+                    if not show_tracks_succeeded and last_fetched_tracks:
+                        log.info("auto_emit_tracks_from_cache count=%d", len(last_fetched_tracks))
+                        yield _sse("tracks_ready", {
+                            "title": "Your mix",
+                            "description": "",
+                            "tracks": last_fetched_tracks[:25],
+                        })
+                        yield _sse("text_delta", {"text": "Here's your mix — click any track to play on Spotify."})
+                        yield _sse("done", {})
+                        return
                     if show_tracks_succeeded:
                         content = "Here you go — your mix is ready below. Click any track to play it on Spotify."
                     elif casual:
@@ -203,7 +315,10 @@ async def run_agent(
 
             yield _sse("tool_status", {"tool": tool_name, "status": "running"})
             try:
-                result = await dispatch_tool(tool_name, tool_input, access_token, spotify_user_id, location)
+                result = await dispatch_tool(
+                    tool_name, tool_input, access_token, spotify_user_id, location,
+                    last_fetched_tracks=last_fetched_tracks,
+                )
             except Exception as e:
                 log.exception("tool_dispatch_failed tool=%s", tool_name)
                 result = {"error": "DISPATCH_FAILED", "hint": f"Tool {tool_name} crashed: {type(e).__name__}: {e}"}
@@ -211,10 +326,25 @@ async def run_agent(
             has_error, hint = _tool_result_has_error(result)
             log.info("tool_result tool=%s has_error=%s", tool_name, has_error)
 
+            # Cache tracks from any successful data-fetch so show_tracks has a
+            # fallback when the model fails to forward them correctly.
+            if not has_error and tool_name in (
+                "get_liked_songs", "get_top_items", "get_recently_played",
+                "get_playlist_tracks", "get_recommendations", "search_catalog",
+            ):
+                fetched = _extract_tracks_for_cache(tool_name, result)
+                log.info("cache_update tool=%s extracted=%d existing=%s",
+                         tool_name, len(fetched) if fetched else 0,
+                         len(last_fetched_tracks) if last_fetched_tracks else 0)
+                if fetched:
+                    last_fetched_tracks = fetched
+
             # Emit show_tracks success event so the UI renders the TrackListCard.
             if tool_name == "show_tracks" and isinstance(result, dict) and "tracks" in result and not has_error:
                 yield _sse("tracks_ready", result)
                 show_tracks_succeeded = True
+            elif tool_name == "show_tracks" and has_error:
+                show_tracks_failures += 1
 
             if has_error:
                 yield _sse("tool_status", {"tool": tool_name, "status": "error", "message": hint or "Tool failed"})

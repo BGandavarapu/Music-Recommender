@@ -26,8 +26,14 @@ def wmo_to_mood(code: int, is_day: bool, temp_c: float) -> tuple[str, str]:
 async def get_weather(lat: float | None = None, lon: float | None = None) -> dict:
     if lat is None or lon is None:
         return {
-            "error": "Location not available",
-            "hint": "Ask the user to describe their current weather (e.g. 'it's raining') or which city to check, then use that mood directly without calling get_weather again.",
+            "error": "NO_LOCATION",
+            "hint": (
+                "The user's coordinates are not available. "
+                "DO NOT call get_weather again. "
+                "DO NOT call search_catalog with weather words as a substitute — that lies to the user about knowing their weather. "
+                "Reply directly to the user asking them to describe the weather (e.g. 'is it rainy or sunny?') "
+                "or which city to check, then wait for their answer before calling any music tools."
+            ),
         }
     url = (
         f"https://api.open-meteo.com/v1/forecast"

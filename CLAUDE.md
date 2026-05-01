@@ -75,10 +75,14 @@ npm run build
 
 | Key | Where to get it |
 |---|---|
-| `ANTHROPIC_API_KEY` | console.anthropic.com |
+| `AGENT_API_KEY` | LLM provider API key (default base URL targets NVIDIA's OpenAI-compatible endpoint) |
+| `AGENT_MODEL` | Model name, default `meta/llama-3.3-70b-instruct` |
+| `AGENT_BASE_URL` | OpenAI-compatible base URL, default `https://integrate.api.nvidia.com/v1` |
 | `SPOTIFY_CLIENT_ID` | developer.spotify.com → your app |
 | `SPOTIFY_CLIENT_SECRET` | same |
-| `SPOTIFY_REDIRECT_URI` | `http://localhost:5173/callback` (add to Spotify app settings) |
+| `SPOTIFY_REDIRECT_URI` | `http://127.0.0.1:5173/api/auth/callback` (add to Spotify app settings) |
+| `FRONTEND_URL` | Where the user lands after OAuth, default `http://127.0.0.1:5173` |
+| `COOKIE_SECURE` | `true` in production (HTTPS), `false` in dev. Default `false` |
 | `SECRET_KEY` | `python -c "import secrets; print(secrets.token_hex(32))"` |
 | `DATABASE_URL` | `sqlite+aiosqlite:///./agent.sqlite` (default) |
 

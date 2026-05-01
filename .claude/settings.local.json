@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(curl -s http://localhost:3001/api/health)",
-      "Bash(curl -s -X POST http://localhost:3001/api/recommendations -H \"Content-Type: application/json\" -d '{\"playlist\":[{\"title\":\"Blinding Lights\",\"artist\":\"The Weeknd\"}],\"mood\":\"sunny\"}')"
-    ]
-  }
-}

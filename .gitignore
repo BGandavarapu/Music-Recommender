@@ -1,38 +1,94 @@
+# ============================================================
+# WARNING: agent.sqlite at project root holds LIVE Spotify OAuth
+# tokens (access + refresh) and active session cookies. This
+# .gitignore intentionally lets that file be tracked per request,
+# but DO NOT `git add agent.sqlite && git push` without first
+# wiping the `users` and `sessions` tables, or you'll publish
+# working credentials. Safer alternative: add `agent.sqlite` here.
+# ============================================================
+
 # Dependencies
 node_modules/
+.pnp
+.pnp.js
 
 # Build output
 dist/
 build/
+*.tsbuildinfo
 
-# Python
-agent/__pycache__/
-agent/**/__pycache__/
-**/__pycache__/
+# Python bytecode and caches
+__pycache__/
 *.pyc
 *.pyo
-agent/.env
+*.pyd
+.Python
+*.egg-info/
+.eggs/
 
-# SQLite databases
-*.sqlite
-*.sqlite-journal
-server/
+# Python virtual environments
+venv/
+.venv/
+env/
+ENV/
 
-# Environment
+# Secrets / environment files
 .env
 .env.local
+.env.development
+.env.production
+.env.*.local
+agent/.env
 
-# OS
-.DS_Store
-Thumbs.db
+# SQLite DBs and scratch files
+agent.sqlite
+*.sqlite
+agent/*.sqlite
+agent/*.sqlite-journal
+agent/*.sqlite-wal
+agent/*.sqlite-shm
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
 
-# IDE
+# Unrelated vendored sub-project
+server/
+
+# Claude Code local settings (machine-specific, may contain session tokens)
+.claude/settings.local.json
+
+# Editor / IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+.cursor/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
 
 # Logs
 *.log
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Test / coverage outputs
+coverage/
+.coverage
+.coverage.*
+.pytest_cache/
+.tox/
+htmlcov/
+
+# Misc
+.cache/
+.parcel-cache/
+*.tmp
+*.temp
+.turbo/

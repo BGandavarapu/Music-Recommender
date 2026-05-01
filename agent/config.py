@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     spotify_client_id: str
     spotify_client_secret: str
     spotify_redirect_uri: str = "http://127.0.0.1:5173/api/auth/callback"
+    frontend_url: str = "http://127.0.0.1:5173"
+    cookie_secure: bool = False
     secret_key: str
     database_url: str = "sqlite+aiosqlite:///./agent.sqlite"
 

@@ -14,11 +14,16 @@ function loadMessages(): Message[] {
   } catch { return []; }
 }
 
+// Match messages where location is plausibly relevant. We only prompt the
+// browser for geolocation on these — asking on page mount is UX-hostile.
+const WEATHER_HINTS = /\b(weather|rain(y|ing)?|sun(ny)?|cloud(y)?|storm(y)?|snow(y)?|fog(gy)?|hot|cold|chilly|outside|forecast|today)\b/i;
+
 export function useChat() {
   const [messages, setMessages] = useState<Message[]>(loadMessages);
   const [loading, setLoading] = useState(false);
   const historyRef = useRef<{ role: string; content: string }[]>([]);
   const geoRef = useRef<{ lat: number; lon: number } | null>(null);
+  const geoRequestedRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
 
   // Restore conversation history from saved messages on mount
@@ -37,16 +42,22 @@ export function useChat() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
   }, [messages]);
 
-  useEffect(() => {
-    if ("geolocation" in navigator) {
+  const ensureLocation = async (text: string): Promise<void> => {
+    if (geoRef.current || geoRequestedRef.current) return;
+    if (!WEATHER_HINTS.test(text)) return;
+    if (!("geolocation" in navigator)) return;
+    geoRequestedRef.current = true;
+    await new Promise<void>((resolve) => {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           geoRef.current = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+          resolve();
         },
-        () => { /* denied — weather requests fall back to stated mood */ }
+        () => resolve(),
+        { timeout: 5000, maximumAge: 5 * 60 * 1000 }
       );
-    }
-  }, []);
+    });
+  };
 
   const updateLast = (updater: (m: Message) => Message) => {
     setMessages((prev) => {
@@ -58,6 +69,8 @@ export function useChat() {
 
   const sendMessage = useCallback(async (text: string) => {
     if (loading) return;
+
+    await ensureLocation(text);
 
     const userMsg: Message = { id: uid(), role: "user", text };
     const assistantMsg: Message = {
