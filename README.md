@@ -1,81 +1,55 @@
-# Music Recommender 🎵
+# Music Recommender
 
-An AI-powered music assistant. Chat with it to create Spotify playlists, discover songs by mood or weather, analyze your taste, and queue music — all in natural language.
+This project is a music app that uses AI to help with Spotify. You can type what you want, like a playlist for a certain mood or some songs to queue, and it will try to do that for you.
 
-> "Create a rainy day indie playlist"  
-> "Analyze my Chill Vibes playlist and make something similar"  
-> "Queue 5 upbeat tracks to get me going"
+It can make playlists, suggest songs, look at playlists you already have, and even use the weather to help pick music.
 
-## Stack
-
-- **Frontend:** React 18 + TypeScript + Vite + Tailwind + Framer Motion
-- **Backend:** Python + FastAPI + SQLAlchemy + SQLite
-- **AI:** OpenAI-compatible chat model (default: NVIDIA NIM Nemotron) with tool_use — agentic loop
-- **Music:** Spotify Web API (search, playlists, queue, audio analysis)
-- **Weather:** Open-Meteo (keyless)
+It uses React and TypeScript for the frontend, and Python with FastAPI for the backend. It also connects to the Spotify API for music features and Open-Meteo for weather data.
 
 ## Setup
 
-### 1. Spotify Developer App
+First, make a Spotify developer app and add this redirect URI:
 
-1. Go to [developer.spotify.com](https://developer.spotify.com) → Create an app
-2. Add `http://127.0.0.1:5173/api/auth/callback` as a Redirect URI
-3. Copy your **Client ID** and **Client Secret**
+`http://127.0.0.1:5173/api/auth/callback`
 
-### 2. Backend
+Then copy your Spotify client ID and client secret.
+
+For the backend:
 
 ```bash
-cd backend/agent
+cd agent
 cp .env.example .env
-# Fill in AGENT_API_KEY, SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET
-# Generate SECRET_KEY: python -c "import secrets; print(secrets.token_hex(32))"
+# add your keys to the .env file
+# generate a SECRET_KEY if needed
+python -c "import secrets; print(secrets.token_hex(32))"
 
 pip install -r requirements.txt
-```
 
-### 3. Frontend
+For the frontend:
 
-```bash
 npm install
-```
-
-### 4. Run
-
-```bash
 npm run dev
-```
 
-Opens Vite at `http://localhost:5173`. The FastAPI backend runs on `:8000`. Vite proxies `/api/*` to it automatically.
+The app runs on http://localhost:5173 and the backend runs on port 8000.
 
-## How it works
+How it works
 
-1. User connects their Spotify account via OAuth
-2. The chat window opens — type anything
-3. The model receives the message + tool registry
-4. The model calls tools (search Spotify, check weather, create playlist…) until it has a full answer
-5. Results stream back in real time via SSE
-6. Playlists appear as clickable cards that open directly in Spotify
+The user connects their Spotify account, then types a message into the app.
 
-## Agent tools
+The AI reads the message and uses different tools depending on what the user asked for. For example, it can search for songs, create a playlist, add songs to a playlist, queue tracks, check what is currently playing, or get the weather.
 
-| Tool | What it does |
-|---|---|
-| `search_catalog` | Search Spotify's 100M+ track catalog |
-| `get_recommendations` | Spotify recommendations seeded from tracks/artists |
-| `create_playlist` | Create a playlist in the user's library |
-| `add_to_playlist` | Append tracks to an existing playlist |
-| `add_to_queue` | Queue songs to the active Spotify device |
-| `get_user_playlists` | List user's playlists |
-| `analyze_playlist` | Extract taste profile (tempo, energy, mood, top artists) |
-| `get_current_playback` | See what's currently playing |
-| `get_weather` | Real weather → music mood via Open-Meteo |
+After that, it sends the result back to the app and shows it to the user.
 
-## Adding more tools
+Main tools
+search for songs
+get recommendations
+create playlists
+add songs to playlists
+add songs to the Spotify queue
+view user playlists
+analyze playlists
+check current playback
+get weather for music suggestions
+Adding more tools
 
-1. Add the implementation in `backend/agent/agent/tools/spotify_tools.py` (or a new file)
-2. Add the JSON schema to `backend/agent/agent/tools/definitions.py`
-3. Add the dispatch case in `backend/agent/agent/brain.py::dispatch_tool()`
-
-## License
-
-MIT
+If you want to add more tools, you can add the code in the backend tool files, add the schema, and then connect it in the tool dispatch part of the agent.
