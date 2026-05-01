@@ -10,7 +10,7 @@ An AI-powered music assistant. Chat with it to create Spotify playlists, discove
 
 - **Frontend:** React 18 + TypeScript + Vite + Tailwind + Framer Motion
 - **Backend:** Python + FastAPI + SQLAlchemy + SQLite
-- **AI:** Claude (Anthropic) with tool_use — agentic loop
+- **AI:** OpenAI-compatible chat model (default: NVIDIA NIM Nemotron) with tool_use — agentic loop
 - **Music:** Spotify Web API (search, playlists, queue, audio analysis)
 - **Weather:** Open-Meteo (keyless)
 
@@ -19,7 +19,7 @@ An AI-powered music assistant. Chat with it to create Spotify playlists, discove
 ### 1. Spotify Developer App
 
 1. Go to [developer.spotify.com](https://developer.spotify.com) → Create an app
-2. Add `http://localhost:5173/callback` as a Redirect URI
+2. Add `http://127.0.0.1:5173/api/auth/callback` as a Redirect URI
 3. Copy your **Client ID** and **Client Secret**
 
 ### 2. Backend
@@ -27,7 +27,7 @@ An AI-powered music assistant. Chat with it to create Spotify playlists, discove
 ```bash
 cd agent
 cp .env.example .env
-# Fill in ANTHROPIC_API_KEY, SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET
+# Fill in AGENT_API_KEY, SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET
 # Generate SECRET_KEY: python -c "import secrets; print(secrets.token_hex(32))"
 
 pip install -r requirements.txt
@@ -51,8 +51,8 @@ Opens Vite at `http://localhost:5173`. The FastAPI backend runs on `:8000`. Vite
 
 1. User connects their Spotify account via OAuth
 2. The chat window opens — type anything
-3. Claude receives the message + tool registry
-4. Claude calls tools (search Spotify, check weather, create playlist…) until it has a full answer
+3. The model receives the message + tool registry
+4. The model calls tools (search Spotify, check weather, create playlist…) until it has a full answer
 5. Results stream back in real time via SSE
 6. Playlists appear as clickable cards that open directly in Spotify
 

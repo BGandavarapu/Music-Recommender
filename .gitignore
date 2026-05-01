@@ -54,6 +54,9 @@ agent/*.sqlite-shm
 # Unrelated vendored sub-project
 server/
 
+# Local AI agent notes / instructions (repo-specific)
+CLAUDE.md
+
 # Claude Code local settings (machine-specific, may contain session tokens)
 .claude/settings.local.json
 
