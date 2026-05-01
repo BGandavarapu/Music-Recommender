@@ -5,10 +5,10 @@
   "private": true,
   "scripts": {
     "dev": "concurrently -k -n agent,web -c blue,magenta \"npm:dev:agent\" \"npm:dev:web\"",
-    "dev:agent": "python -m uvicorn agent.main:app --reload --port 8000",
-    "dev:web": "vite",
-    "build": "vite build",
-    "typecheck": "tsc --noEmit"
+    "dev:agent": "cd backend && python -m uvicorn agent.main:app --reload --port 8000",
+    "dev:web": "cd frontend && vite",
+    "build": "cd frontend && vite build",
+    "typecheck": "cd frontend && tsc --noEmit"
   },
   "dependencies": {
     "framer-motion": "^12.23.0",

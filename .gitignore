@@ -1,10 +1,7 @@
 # ============================================================
-# WARNING: agent.sqlite at project root holds LIVE Spotify OAuth
-# tokens (access + refresh) and active session cookies. This
-# .gitignore intentionally lets that file be tracked per request,
-# but DO NOT `git add agent.sqlite && git push` without first
-# wiping the `users` and `sessions` tables, or you'll publish
-# working credentials. Safer alternative: add `agent.sqlite` here.
+# WARNING: local SQLite DBs may hold LIVE Spotify OAuth tokens
+# (access + refresh) and active session cookies.
+# Do NOT commit local DB files.
 # ============================================================
 
 # Dependencies
@@ -38,20 +35,20 @@ ENV/
 .env.development
 .env.production
 .env.*.local
-agent/.env
+backend/agent/.env
 
 # SQLite DBs and scratch files
-agent.sqlite
+databases/
 *.sqlite
-agent/*.sqlite
-agent/*.sqlite-journal
-agent/*.sqlite-wal
-agent/*.sqlite-shm
+backend/agent/*.sqlite
+backend/agent/*.sqlite-journal
+backend/agent/*.sqlite-wal
+backend/agent/*.sqlite-shm
 *.sqlite-journal
 *.sqlite-wal
 *.sqlite-shm
 
-# Unrelated vendored sub-project
+# Legacy / local-only DB dump folder (some machines may have this open/locked)
 server/
 
 # Local AI agent notes / instructions (repo-specific)

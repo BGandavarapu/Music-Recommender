@@ -25,7 +25,7 @@ An AI-powered music assistant. Chat with it to create Spotify playlists, discove
 ### 2. Backend
 
 ```bash
-cd agent
+cd backend/agent
 cp .env.example .env
 # Fill in AGENT_API_KEY, SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET
 # Generate SECRET_KEY: python -c "import secrets; print(secrets.token_hex(32))"
@@ -72,9 +72,9 @@ Opens Vite at `http://localhost:5173`. The FastAPI backend runs on `:8000`. Vite
 
 ## Adding more tools
 
-1. Add the implementation in `agent/agent/tools/spotify_tools.py` (or a new file)
-2. Add the JSON schema to `agent/agent/tools/definitions.py`
-3. Add the dispatch case in `agent/agent/brain.py::dispatch_tool()`
+1. Add the implementation in `backend/agent/agent/tools/spotify_tools.py` (or a new file)
+2. Add the JSON schema to `backend/agent/agent/tools/definitions.py`
+3. Add the dispatch case in `backend/agent/agent/brain.py::dispatch_tool()`
 
 ## License
 
