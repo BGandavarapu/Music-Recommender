@@ -24,12 +24,12 @@ cp .env.example .env
 python -c "import secrets; print(secrets.token_hex(32))"
 
 pip install -r requirements.txt
-
+```
 For the frontend:
-
+```
 npm install
 npm run dev
-
+```
 The app runs on http://localhost:5173 and the backend runs on port 8000.
 
 How it works
@@ -50,6 +50,3 @@ view user playlists
 analyze playlists
 check current playback
 get weather for music suggestions
-Adding more tools
-
-If you want to add more tools, you can add the code in the backend tool files, add the schema, and then connect it in the tool dispatch part of the agent.
